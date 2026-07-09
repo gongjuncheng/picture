@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub 云盘 · picture</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f6f8fa; color: #24292f; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 8px 24px rgba(140,149,159,0.2); padding: 24px; }
+        h1 { font-size: 24px; font-weight: 600; display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+        .token-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: #f1f8ff; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #c8e1ff; }
+        .token-bar label { font-weight: 600; font-size: 14px; }
+        .token-bar input { flex: 1; min-width: 200px; padding: 8px 12px; border: 1px solid #d0d7de; border-radius: 6px; font-size: 14px; background: #fff; }
+        .token-bar input:focus { border-color: #0969da; outline: none; box-shadow: 0 0 0 3px rgba(9,105,218,0.3); }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; border: 1px solid transparent; cursor: pointer; transition: 0.2s; background: #f3f4f6; color: #24292f; }
+        .btn-primary { background: #1f883d; color: #fff; border-color: #1f883d; }
+        .btn-primary:hover { background: #1a7a34; }
+        .btn-danger { background: #cf222e; color: #fff; border-color: #cf222e; }
+        .btn-danger:hover { background: #b51d28; }
+        .btn-outline { background: transparent; border-color: #d0d7de; }
+        .btn-outline:hover { background: #f3f4f6; }
+        .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #d0d7de; }
+        .path-nav { display: flex; align-items: center; gap: 8px; flex: 1; font-size: 14px; background: #f6f8fa; padding: 6px 12px; border-radius: 6px; }
+        .path-nav span { color: #57606a; }
+        .path-nav .folder-name { font-weight: 600; color: #24292f; }
+        .upload-area { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+        #fileInput { display: none; }
+        .file-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; min-height: 200px; }
+        .file-item { background: #f6f8fa; border-radius: 8px; padding: 12px; text-align: center; border: 1px solid #d0d7de; transition: 0.2s; cursor: default; position: relative; }
+        .file-item:hover { background: #fff; border-color: #0969da; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .file-item .icon { font-size: 40px; line-height: 1.2; height: 50px; display: flex; align-items: center; justify-content: center; }
+        .file-item .name { font-size: 13px; font-weight: 500; margin-top: 6px; word-break: break-all; max-height: 36px; overflow: hidden; }
+        .file-item .size { font-size: 11px; color: #57606a; margin-top: 2px; }
+        .file-item .actions { margin-top: 8px; display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; }
+        .file-item .actions .btn { font-size: 12px; padding: 4px 10px; }
+        .empty-state { grid-column: 1 / -1; text-align: center; padding: 60px 0; color: #57606a; }
+        .empty-state .big-icon { font-size: 48px; margin-bottom: 12px; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-overlay.active { display: flex; }
+        .modal-box { background: #fff; border-radius: 12px; max-width: 90vw; max-height: 90vh; padding: 20px; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+        .modal-box .close { position: absolute; top: 8px; right: 16px; font-size: 28px; cursor: pointer; color: #57606a; background: none; border: none; }
+        .modal-box .close:hover { color: #24292f; }
+        .modal-box img, .modal-box video { max-width: 80vw; max-height: 80vh; object-fit: contain; display: block; }
+        .modal-box audio { width: 80vw; max-width: 600px; }
+        .modal-box iframe { width: 80vw; height: 80vh; border: none; }
+        .modal-box .text-preview { max-width: 800px; max-height: 70vh; overflow: auto; white-space: pre-wrap; font-family: monospace; padding: 16px; background: #f6f8fa; border-radius: 6px; }
+        .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #24292f; color: #fff; padding: 12px 24px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity 0.3s; z-index: 2000; pointer-events: none; }
+        .toast.show { opacity: 1; }
+        @media (max-width: 640px) { .file-list { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📁 picture 云盘 <span style="font-size:14px;font-weight:400;color:#57606a;">(gongjuncheng/picture)</span></h1>
+
+    <div class="token-bar">
+        <label for="tokenInput">🔑 Token</label>
+        <input type="password" id="tokenInput" placeholder="输入 GitHub Personal Access Token (repo 权限)" />
+        <button class="btn btn-primary" id="saveTokenBtn">保存 Token</button>
+        <span style="font-size:12px;color:#57606a;margin-left:4px;">(仅保存在本地浏览器)</span>
+    </div>
+
+    <div class="toolbar">
+        <div class="path-nav">
+            <span>📂 路径：</span>
+            <span class="folder-name" id="currentPathDisplay">/</span>
+            <button class="btn btn-outline" id="goParentBtn" style="padding:2px 10px;font-size:12px;">⬆ 上级</button>
+        </div>
+        <div class="upload-area">
+            <button class="btn btn-primary" id="uploadBtn">📤 上传文件</button>
+            <input type="file" id="fileInput" multiple />
+            <button class="btn btn-outline" id="refreshBtn">🔄 刷新</button>
+        </div>
+    </div>
+
+    <div class="file-list" id="fileList">
+        <div class="empty-state">加载中...</div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="previewModal">
+    <div class="modal-box">
+        <button class="close" id="modalCloseBtn">&times;</button>
+        <div id="modalContent"></div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    (function() {
+        // ---------- 配置 ----------
+        const OWNER = 'gongjuncheng';
+        const REPO = 'picture';
+        const BRANCH = 'main'; // 如果你的默认分支是 master，请修改此处
+
+        // DOM
+        const tokenInput = document.getElementById('tokenInput');
+        const saveTokenBtn = document.getElementById('saveTokenBtn');
+        const fileList = document.getElementById('fileList');
+        const currentPathDisplay = document.getElementById('currentPathDisplay');
+        const goParentBtn = document.getElementById('goParentBtn');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileInput = document.getElementById('fileInput');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const modal = document.getElementById('previewModal');
+        const modalContent = document.getElementById('modalContent');
+        const modalCloseBtn = document.getElementById('modalCloseBtn');
+        const toast = document.getElementById('toast');
+
+        let currentPath = '';
+
+        // ---------- 辅助 ----------
+        function getToken() {
+            return localStorage.getItem('github_token') || '';
+        }
+
+        function saveTokenToStorage(t) {
+            if (t) {
+                localStorage.setItem('github_token', t);
+            } else {
+                localStorage.removeItem('github_token');
+            }
+        }
+
+        function showToast(msg, duration = 3000) {
+            toast.textContent = msg;
+            toast.classList.add('show');
+            clearTimeout(toast._timer);
+            toast._timer = setTimeout(() => toast.classList.remove('show'), duration);
+        }
+
+        function getHeaders() {
+            const t = getToken();
+            return {
+                'Authorization': t ? `token ${t}` : '',
+                'Accept': 'application/vnd.github.v3+json'
+            };
+        }
+
+        function getRawUrl(path) {
+            const cleanPath = path.replace(/^\/+/, '');
+            return `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${cleanPath}`;
+        }
+
+        function formatSize(bytes) {
+            if (!bytes) return '-';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+
+        function getFileIcon(name) {
+            const ext = name.split('.').pop().toLowerCase();
+            if (['jpg','jpeg','png','gif','svg','webp','bmp','ico'].includes(ext)) return '🖼️';
+            if (['mp4','webm','ogg','mov','mkv','avi'].includes(ext)) return '🎬';
+            if (['mp3','wav','flac','aac','m4a','ogg'].includes(ext)) return '🎵';
+            if (['zip','rar','7z','tar','gz'].includes(ext)) return '📦';
+            if (['pdf'].includes(ext)) return '📄';
+            if (['doc','docx'].includes(ext)) return '📝';
+            if (['xls','xlsx','csv'].includes(ext)) return '📊';
+            if (['ppt','pptx'].includes(ext)) return '📑';
+            if (['txt','log','md'].includes(ext)) return '📃';
+            if (['js','ts','html','css','json','xml','py','java','c','cpp','go','rs','php'].includes(ext)) return '💻';
+            return '📎';
+        }
+
+        // 文件类型判断
+        function isImage(name) {
+            const ext = name.split('.').pop().toLowerCase();
+            return ['jpg','jpeg','png','gif','svg','webp','bmp','ico'].includes(ext);
+        }
+        function isVideo(name) {
+            const ext = name.split('.').pop().toLowerCase();
+            return ['mp4', 'webm', 'ogg', 'mov', 'mkv', 'avi'].includes(ext);
+        }
+        function isAudio(name) {
+            const ext = name.split('.').pop().toLowerCase();
+            return ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg'].includes(ext);
+        }
+        function isPdf(name) {
+            return name.split('.').pop().toLowerCase() === 'pdf';
+        }
+        function isText(name) {
+            const ext = name.split('.').pop().toLowerCase();
+            return ['txt','log','md','js','ts','html','css','json','xml','py','java','c','cpp','go','rs','php','sh','yaml','yml','toml'].includes(ext);
+        }
+
+        // ---------- API ----------
+        async function fetchContents(path) {
+            const cleanPath = path.replace(/^\/+/, '').replace(/\/+$/, '');
+            const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${cleanPath}?ref=${BRANCH}`;
+            const resp = await fetch(url, { headers: getHeaders() });
+            if (!resp.ok) {
+                if (resp.status === 404) throw new Error('路径不存在或仓库为空');
+                if (resp.status === 401) throw new Error('Token 无效或已过期，请重新保存');
+                throw new Error(`GitHub API 错误 (${resp.status})`);
+            }
+            const data = await resp.json();
+            if (!Array.isArray(data)) {
+                return [data];
+            }
+            return data;
+        }
+
+        async function deleteFile(path, sha) {
+            const cleanPath = path.replace(/^\/+/, '');
+            const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${cleanPath}`;
+            const resp = await fetch(url, {
+                method: 'DELETE',
+                headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: `删除文件 ${cleanPath}`,
+                    sha: sha,
+                    branch: BRANCH
+                })
+            });
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.message || '删除失败');
+            }
+            return await resp.json();
+        }
+
+        // ---------- 下载文件（通过 API，避免 429）----------
+        async function downloadFileViaApi(path, name) {
+            if (!getToken()) {
+                showToast('❌ 下载需要 Token，请先保存', 3000);
+                return;
+            }
+            try {
+                showToast(`⏳ 正在下载 ${name} ...`, 2000);
+                const apiUrl = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}?ref=${BRANCH}`;
+                const resp = await fetch(apiUrl, { headers: getHeaders() });
+                if (!resp.ok) throw new Error(`API请求失败 (${resp.status})`);
+                const data = await resp.json();
+                const binaryString = atob(data.content);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                const blob = new Blob([bytes]);
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = name;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href);
+                showToast(`✅ 下载完成: ${name}`);
+            } catch (err) {
+                showToast(`❌ 下载失败: ${err.message}`, 4000);
+            }
+        }
+
+        // ---------- 预览（支持图片/视频/音频/PDF/文本）----------
+        function previewFile(name, rawUrl) {
+            modalContent.innerHTML = '';
+            modal.classList.add('active');
+
+            if (isImage(name)) {
+                const img = document.createElement('img');
+                img.src = rawUrl;
+                img.alt = name;
+                img.onerror = () => { modalContent.innerHTML = `<p>图片加载失败。</p><a href="${rawUrl}" target="_blank">点击打开</a>`; };
+                modalContent.appendChild(img);
+                return;
+            }
+
+            if (isVideo(name)) {
+                const video = document.createElement('video');
+                video.src = rawUrl;
+                video.controls = true;
+                video.autoplay = false;
+                video.style.maxWidth = '80vw';
+                video.style.maxHeight = '80vh';
+                video.style.background = '#000';
+                video.onerror = () => { modalContent.innerHTML = `<p>视频加载失败，可能编码不支持。</p><a href="${rawUrl}" target="_blank">点击下载</a>`; };
+                modalContent.appendChild(video);
+                return;
+            }
+
+            if (isAudio(name)) {
+                const audio = document.createElement('audio');
+                audio.src = rawUrl;
+                audio.controls = true;
+                audio.style.width = '100%';
+                audio.onerror = () => { modalContent.innerHTML = `<p>音频加载失败。</p><a href="${rawUrl}" target="_blank">点击下载</a>`; };
+                modalContent.appendChild(audio);
+                return;
+            }
+
+            if (isPdf(name)) {
+                // 使用 iframe 内联加载，若浏览器强制下载则提示
+                const iframe = document.createElement('iframe');
+                iframe.src = rawUrl;
+                iframe.style.width = '80vw';
+                iframe.style.height = '80vh';
+                iframe.style.border = 'none';
+                iframe.onerror = () => { modalContent.innerHTML = `<p>PDF 加载失败。</p><a href="${rawUrl}" target="_blank">点击打开</a>`; };
+                modalContent.appendChild(iframe);
+                return;
+            }
+
+            if (isText(name)) {
+                fetch(rawUrl)
+                    .then(res => {
+                        if (!res.ok) throw new Error('加载失败');
+                        return res.text();
+                    })
+                    .then(text => {
+                        const pre = document.createElement('pre');
+                        pre.className = 'text-preview';
+                        pre.textContent = text;
+                        modalContent.innerHTML = '';
+                        modalContent.appendChild(pre);
+                    })
+                    .catch(() => {
+                        modalContent.innerHTML = `<p>无法预览文本内容。</p><a href="${rawUrl}" target="_blank">点击打开</a>`;
+                    });
+                return;
+            }
+
+            // 其他类型
+            modalContent.innerHTML = `
+                <div style="text-align:center;padding:20px;">
+                    <div style="font-size:60px;">${getFileIcon(name)}</div>
+                    <p style="margin:16px 0;">此文件类型不支持在线预览</p>
+                    <a href="${rawUrl}" target="_blank" class="btn btn-primary">⬇️ 下载文件</a>
+                </div>
+            `;
+        }
+
+        // ---------- 上传 ----------
+        async function uploadFiles(files) {
+            const tokenNow = getToken();
+            if (!tokenNow) {
+                showToast('❌ 请先填写并保存 Token', 3000);
+                return;
+            }
+            for (const file of files) {
+                const filePath = currentPath ? `${currentPath}/${file.name}`.replace(/\/+/g,'/') : file.name;
+                const cleanPath = filePath.replace(/^\/+/, '');
+                try {
+                    const base64 = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const b64 = e.target.result.split(',')[1];
+                            resolve(b64);
+                        };
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                    });
+                    const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${cleanPath}`;
+                    const resp = await fetch(url, {
+                        method: 'PUT',
+                        headers: { ...getHeaders(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            message: `上传 ${file.name}`,
+                            content: base64,
+                            branch: BRANCH
+                        })
+                    });
+                    if (!resp.ok) {
+                        const err = await resp.json();
+                        throw new Error(err.message || '上传失败');
+                    }
+                    showToast(`✅ 上传成功: ${file.name}`);
+                } catch (err) {
+                    showToast(`❌ 上传失败 (${file.name}): ${err.message}`, 5000);
+                }
+            }
+            loadDirectory(currentPath);
+        }
+
+        // ---------- 渲染 ----------
+        function renderFiles(items) {
+            if (!items || items.length === 0) {
+                fileList.innerHTML = `<div class="empty-state"><div class="big-icon">📭</div><p>此目录为空</p></div>`;
+                return;
+            }
+
+            const sorted = items.sort((a, b) => {
+                if (a.type === 'dir' && b.type !== 'dir') return -1;
+                if (a.type !== 'dir' && b.type === 'dir') return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+            let html = '';
+            for (const item of sorted) {
+                const isDir = item.type === 'dir';
+                const name = item.name;
+                const icon = isDir ? '📁' : getFileIcon(name);
+                const size = isDir ? '' : formatSize(item.size);
+                const rawUrl = isDir ? '' : getRawUrl(item.path);
+
+                html += `
+                    <div class="file-item" data-path="${item.path}" data-type="${item.type}" data-sha="${item.sha || ''}" data-raw="${rawUrl}">
+                        <div class="icon">${icon}</div>
+                        <div class="name" title="${name}">${name}</div>
+                        <div class="size">${size}</div>
+                        <div class="actions">
+                            ${isDir ? `<button class="btn btn-outline open-dir" style="font-size:12px;padding:2px 10px;">📂 打开</button>` : 
+                            `<button class="btn btn-outline preview-file" style="font-size:12px;padding:2px 10px;">👁️ 预览</button>
+                             <button class="btn btn-outline download-file" style="font-size:12px;padding:2px 10px;">⬇️ 下载</button>
+                             <button class="btn btn-danger delete-file" style="font-size:12px;padding:2px 10px;">🗑️</button>`
+                            }
+                        </div>
+                    </div>
+                `;
+            }
+            fileList.innerHTML = html;
+            currentPathDisplay.textContent = '/' + currentPath.replace(/^\/+/, '').replace(/\/+$/, '') || '/';
+
+            // 事件绑定
+            fileList.querySelectorAll('.open-dir').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const parent = btn.closest('.file-item');
+                    loadDirectory(parent.dataset.path);
+                });
+            });
+
+            fileList.querySelectorAll('.preview-file').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const parent = btn.closest('.file-item');
+                    const name = parent.querySelector('.name').textContent;
+                    previewFile(name, parent.dataset.raw);
+                });
+            });
+
+            fileList.querySelectorAll('.download-file').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const parent = btn.closest('.file-item');
+                    const path = parent.dataset.path;
+                    const name = parent.querySelector('.name').textContent;
+                    downloadFileViaApi(path, name);
+                });
+            });
+
+            fileList.querySelectorAll('.delete-file').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const parent = btn.closest('.file-item');
+                    const path = parent.dataset.path;
+                    const sha = parent.dataset.sha;
+                    const name = parent.querySelector('.name').textContent;
+                    if (confirm(`确定要删除 "${name}" 吗？此操作不可撤销！`)) {
+                        (async () => {
+                            try {
+                                await deleteFile(path, sha);
+                                showToast(`✅ 删除成功: ${path}`);
+                                loadDirectory(currentPath);
+                            } catch (err) {
+                                showToast('❌ 删除失败: ' + err.message, 4000);
+                            }
+                        })();
+                    }
+                });
+            });
+        }
+
+        // ---------- 加载目录 ----------
+        async function loadDirectory(path) {
+            try {
+                fileList.innerHTML = '<div class="empty-state">加载中...</div>';
+                currentPath = path || '';
+                const items = await fetchContents(currentPath);
+                renderFiles(items);
+            } catch (err) {
+                fileList.innerHTML = `<div class="empty-state"><div class="big-icon">❌</div><p>${err.message}</p></div>`;
+                showToast('加载失败: ' + err.message, 4000);
+            }
+        }
+
+        // ---------- UI 事件 ----------
+        saveTokenBtn.addEventListener('click', () => {
+            const t = tokenInput.value.trim();
+            if (t) {
+                saveTokenToStorage(t);
+                showToast('✅ Token 已保存到本地浏览器');
+            } else {
+                saveTokenToStorage('');
+                showToast('已清除 Token');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const saved = getToken();
+            if (saved) {
+                tokenInput.value = saved;
+            }
+            loadDirectory('');
+        });
+
+        goParentBtn.addEventListener('click', () => {
+            if (!currentPath) return;
+            const parts = currentPath.split('/').filter(p => p);
+            parts.pop();
+            loadDirectory(parts.join('/'));
+        });
+
+        refreshBtn.addEventListener('click', () => {
+            loadDirectory(currentPath);
+        });
+
+        uploadBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                uploadFiles(e.target.files);
+                e.target.value = '';
+            }
+        });
+
+        modalCloseBtn.addEventListener('click', () => {
+            modal.classList.remove('active');
+        });
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.classList.remove('active');
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') modal.classList.remove('active');
+        });
+
+    })();
+</script>
+</body>
+</html>
